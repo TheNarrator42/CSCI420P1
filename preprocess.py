@@ -1,29 +1,31 @@
-import re
+import argparse
+import csv
+import javalang
+import os
 import pandas as pd
+import re
+
+from javalang.parse import parse
+from javalang.tree import MethodDeclaration
+from pydriller import Repository
 from pygments.lexers.jvm import JavaLexer
 from pygments.lexers import get_lexer_by_name
 from pygments.token import Token
 
-### Type 1 Clones ###
 def remove_duplicates(data):
     """Remove duplicate methods based on method content.
       Almost Type-1 with the exception of comments
     """
-    return data.drop_duplicates(subset="Method Java", keep="first")
+    return data.drop_duplicates(subset="Method Code", keep="first")
 
 def filter_ascii_methods(data):
     """Filter methods to include only those with ASCII characters."""
-    data = data[data["Method Java"].apply(lambda x: all(ord(char) < 128 for char in x))]
+    data = data[data["Method Code"].apply(lambda x: all(ord(char) < 128 for char in x))]
     return data
-
-# Three Approaches:
-# 	1.	Data Distribution-Based Filtering: We eliminate outliers by analyzing the original data distribution, as demonstrated below.
-# 	2.	Literature-Driven Filtering: We follow best practices outlined in research, such as removing methods exceeding 512 tokens in length.
-# 	3.	Hybrid Approach: We combine elements from both the distribution-based and literature-driven methods.
 
 def remove_outliers(data, lower_percentile=5, upper_percentile=95):
     """Remove outliers based on method length."""
-    method_lengths = data["Method Java"].apply(len)
+    method_lengths = data["Method Code"].apply(len)
     lower_bound = method_lengths.quantile(lower_percentile / 100)
     upper_bound = method_lengths.quantile(upper_percentile / 100)
     return data[(method_lengths >= lower_bound) & (method_lengths <= upper_bound)]
@@ -35,13 +37,13 @@ def remove_boilerplate_methods(data):
         r"\bget[A-Z][a-zA-Z0-9_]*\(.*\)\s*{",  # Getter methods
     ]
     boilerplate_regex = re.compile("|".join(boilerplate_patterns))
-    data = data[~data["Method Java"].apply(lambda x: bool(boilerplate_regex.search(x)))]
+    data = data[~data["Method Code"].apply(lambda x: bool(boilerplate_regex.search(x)))]
     return data
 
 
 def remove_comments_from_dataframe(df: pd.DataFrame, method_column: str, language: str) -> pd.DataFrame:
     """
-    Removes comments from Java methods in a DataFrame and adds a new column with cleaned methods.
+    Removes comments from Java methods in a DataFrame.
 
     Args:
         df (pd.DataFrame): DataFrame containing the methods.
@@ -61,43 +63,142 @@ def remove_comments_from_dataframe(df: pd.DataFrame, method_column: str, languag
 
         return clean_code
 
-    # Apply the function to the specified column and add a new column with the results
-    df["Method Java No Comments"] = df[method_column].apply(remove_comments)
+    # Apply the function to the specified column
+    df["Method Code"] = df[method_column].apply(remove_comments)
     return df
 
-code = """public static void main() { System.out.println("bau");}"""
+def extract_methods_from_java(code):
+    """
+    Extract methods from Java source code using javalang parser.
 
-lexer = JavaLexer()
+    Args:
+        code (str): The Java source code.
 
-tokens = [t[1] for t in lexer.get_tokens(code)]
-print(tokens)
-print(len(tokens))
+    Returns:
+        list: A list of tuples containing method names and their full source code.
+    """
+    methods = []
+    try:
+        # Parse the code into an Abstract Syntax Tree (AST)
+        tree = javalang.parse.parse(code)
+        lines = code.splitlines()
 
-# Example usage
-data = pd.DataFrame({
-    "Method Java": [
-        "public void setName(String name) { this.name = name; }",
-        "public String getName() { return this.name; }",
-        "public void processData() { System.out.println(\"Processing data\"); }",
-        "// This is a comment\npublic void processData() { /* Do something */ System.out.println(\"Done\"); }",
-        "public void doWork() { for(int i=0; i<10; i++) /* Do something */ System.out.println(i); }",
-    ]
-})
+        # Traverse the tree to find method declarations
+        for _, node in tree.filter(javalang.tree.MethodDeclaration):
+            method_name = node.name
 
-print("Initial dataset size:", len(data))
-data = remove_duplicates(data)
-print("After removing duplicates:", len(data))
+            # Determine the start and end lines of the method
+            start_line = node.position.line - 1
+            end_line = None
 
-data = filter_ascii_methods(data)
-print("After filtering ASCII methods:", len(data))
+            # Use the body of the method to determine its end position
+            if node.body:
+                last_statement = node.body[-1]
+                if hasattr(last_statement, 'position') and last_statement.position:
+                    end_line = last_statement.position.line
 
-data = remove_outliers(data)
-print("After removing outliers:", len(data))
+            # Extract method code
+            if end_line:
+                method_code = "\n".join(lines[start_line:end_line+1])
+            else:
+                # If end_line couldn't be determined, extract up to the end of the file
+                method_code = "\n".join(lines[start_line:])
 
-data = remove_boilerplate_methods(data)
-print("After removing boilerplate methods:", len(data))
+            methods.append((method_name, method_code))
+    # except javalang.parser.JavaSyntaxError as e:
+    #     # TODO: Consider including this but maybe storing the details elsewhere so it doesn't clutter the output
+    #     print(f"Error parsing Java code: {repr(e)} caused by the following code: \n{code}")  
+    except Exception as e:
+        print(f"Error parsing Java code: {str(e)}")
+    return methods
 
-data = remove_comments_from_dataframe(data, "Method Java", "Java")
-print("After cleaning comments:", len(data))
+def extract_methods_to_dataframe_from_master(repo_list):
+    """
+    Extract methods from Java files in the master branch of the repos in the list 
+    and save the information in a Pandas dataframe for further processing.
 
-data.head()
+    Args:
+        repo_list (List: str): List of path to various Git repositories.
+    
+    Returns:
+        pd.DataFrame: Dataframe consisting of extracted Java methods and relevant information
+    """
+    extracted_methods = []
+  
+    for repo_path in repo_list:
+      print(f"Processing repository: {repo_path}")
+      for commit in Repository(repo_path, only_in_branch="master").traverse_commits():
+        #   print(f"Processing commit: {commit.hash}")
+
+          #We only look into the modified files. In other words, we are looking into the history of the software system by traversing each commit.
+          #Various Generative AI methods for SD have been trained on data collected in this way; for example bug fixing.
+          for modified_file in commit.modified_files:
+              if modified_file.filename.endswith(".java") and modified_file.source_code:
+                  methods = extract_methods_from_java(modified_file.source_code)
+
+                  for method_name, method_code in methods:
+                      extracted_methods.append({
+                          "Repo Name": repo_path,
+                          "Commit Hash": commit.hash,
+                          "File Name": modified_file.filename,
+                          "Method Name": method_name,
+                          "Method Code": method_code,
+                          "Commit Link": f"{repo_path}/commit/{commit.hash}"
+                      })
+
+    df = pd.DataFrame(extracted_methods)
+    return df
+
+def create_dataset(repo_list_file, output_csv):
+    repo_list = []
+    with open(repo_list_file) as file:
+        for line in file:
+            repo_list.append(line.rstrip())
+
+    print(f'Extracting Java methods from Git repositories')
+
+    df = extract_methods_to_dataframe_from_master(repo_list)
+
+    print(f'Raw dataframe consisting of {len(df)} Java methods')
+
+    df = remove_duplicates(df)
+
+    df = filter_ascii_methods(df)
+
+    df = remove_outliers(df)
+
+    df = remove_boilerplate_methods(df)
+
+    df = remove_comments_from_dataframe(df, "Method Code", "Java")
+
+    print(f'Final preprocessed dataframe consisting of {len(df)} Java methods')
+    print(f'Saving dataframe as CSV file in {output_csv}')
+
+    df.to_csv(output_csv)
+    return df
+
+def tokenization(dataset, output_vocab_file):
+    """Tokenizing the dataset to create a vocabulary of unique tokens"""
+
+    print(f'Constructing vocabulary for the model')
+    lexer = JavaLexer()
+
+    tokens = [t[1] for code in dataset["Method Code"] for t in lexer.get_tokens(code)]
+    vocab = list(set(tokens))
+
+    print(f'Vocabulary consists of {len(vocab)} unique tokens')
+    print(f'Storing vocabulary in {output_vocab_file}')
+
+    with open(output_vocab_file, 'w') as file:
+        for token in vocab:
+            file.write(f"{token}\n")
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--git_repo_file", type = str, default = 'ghs_repos.txt', help = 'File containing list of Git repos to use for N-gram model, each separated by newline')
+    parser.add_argument("--output_csv_file", type = str, default = 'data.csv', help = 'CSV file storing preprocessed extracted Java methods')
+    parser.add_argument("--output_vocab_file", type = str, default = 'vocab.txt', help = 'Text file for storing all the unique tokens')
+    args = parser.parse_args()
+
+    df = create_dataset(args.git_repo_file, args.output_csv_file)
+    tokenization(df, args.output_vocab_file)
