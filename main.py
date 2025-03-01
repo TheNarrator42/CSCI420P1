@@ -32,41 +32,48 @@ def ngram(dataset,n=3):
     #key:[TotalTokens,["token", frequency, probability],...]
     #goes through the pandas dataframe, tokenizes it and computes the frequency of the next token
     for index, method in dataset.iterrows():
-        s=""
+        tokenlist = []
         try:
-            tokenlist = list(javalang.tokenizer.tokenize(method['Method Code']))
+            tokens = list(javalang.tokenizer.tokenize(method['Method Code']))
+            tokenlist.extend([token.value for token in tokens])
             #creating every possible token from the list
             #there might be an off by 1 error here
             for i in range(len(tokenlist)-n):
-                for j in range(i,i+n+1):
-                    s += tokenlist[j]
-                #there might be an off by 1 error here
-                nextToken = tokenlist[i+n+1]
+                s=""
+                for j in range(i, i+n):
+                    s += tokenlist[j] + " "
+                
+                nextToken = tokenlist[i+n]
                 #new unseen token not in the model
-                if s not in model:  
+                if s not in model:
                     model.update({s:[0,[nextToken,1,None]]})
                 #otherwise it is in the model, but is a new token
-                elif inTuple(model[s], nextToken):
+                elif not inTuple(model[s][1:], nextToken): 
                     model[s].append([nextToken,1,None])
                     model[s][0] += 1
                 #otherwise in the model, not a new token
                 else:
-                    for i in model[s]:
+                    for i in model[s][1:]:
                         if(nextToken == i[0]):
                             i[1]+=1
                             break
-        except:
-            pass
-    for list in model.values():
+                    model[s][0] += 1
+        except Exception as e:
+            print(f'Exception while creating n-gram model - {type(e)}: {e}')
+            continue
+    for val in model.values():
         #first element is total frequency
-        for token in list[1:]:
-            token[2]=float(token[1]/list[0])
+        for token in val[1:]:
+            if val[0] == 0:
+                token[2] = 0
+            else:
+                token[2]=float(token[1]/val[0])
     return model
 
 #helper function, takes in a nested list returns if a string s is in the first element of the nested list
-def inTuple(list, s):
-    for i in range(len(list)):
-        if(s == list[i][0]):
+def inTuple(nested_list, s):
+    for i in range(len(nested_list)):
+        if(s == nested_list[i][0]):
             return True
     return False
 
