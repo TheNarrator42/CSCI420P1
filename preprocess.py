@@ -200,7 +200,7 @@ def tokenization(dataset, output_vocab_file):
             try:
                 file.write(f"{token}\n")
             except:
-                print(token)
+                print(f"error processing {token}\n")
     return vocab
 
 if __name__ == '__main__':
