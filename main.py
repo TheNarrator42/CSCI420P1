@@ -26,7 +26,7 @@ def dataSplit(fullData):
     validationData.to_csv(validationcsv, index = False)
     return testingData, trainingData, validationData
 
-#takes in panda dataframe, list of tokens, int n for size, returns a dictionary
+#takes in panda dataframe, int n for size, returns a dictionary
 def ngram(dataset,n=3):
     model = {}
     #key:[TotalTokens,["token", frequency, probability],...]
