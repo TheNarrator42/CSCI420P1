@@ -36,6 +36,12 @@ if __name__ == '__main__':
     #Dropping unneeded columns
     fullData.drop(axis=1, labels=["Commit Hash", "Commit Link","Method Name","File Name", "Repo Name"], inplace=True)
     fullData.drop(fullData.columns[0],axis=1,inplace = True)
+    #Tokenization
+    if(not os.path.isfile(tokenlist)):
+        tokens = preprocess.tokenization(fullData.values.tolist(), tokenlist)
+    else:
+        tokens = open(tokenlist).read().splitlines()
+
     #Seperating data into three sets
     if(not os.path.isfile(testingcsv) and not os.path.isfile(trainingcsv) and not os.path.isfile(validationcsv)):
         print("Data not found")

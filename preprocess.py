@@ -181,9 +181,15 @@ def tokenization(dataset, output_vocab_file):
     """Tokenizing the dataset to create a vocabulary of unique tokens"""
 
     print(f'Constructing vocabulary for the model')
-    lexer = JavaLexer()
-
-    tokens = [t[1] for code in dataset["Method Code"] for t in lexer.get_tokens(code)]
+    
+    tokens = []
+    for s in dataset:
+        try:
+            tokenlist = list(javalang.tokenizer.tokenize(s[0]))
+            tokens.extend([token.value for token in tokenlist])  # Extract token values
+        except:
+            pass
+    
     vocab = list(set(tokens))
 
     print(f'Vocabulary consists of {len(vocab)} unique tokens')
@@ -191,7 +197,11 @@ def tokenization(dataset, output_vocab_file):
 
     with open(output_vocab_file, 'w') as file:
         for token in vocab:
-            file.write(f"{token}\n")
+            try:
+                file.write(f"{token}\n")
+            except:
+                print(token)
+    return vocab
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
