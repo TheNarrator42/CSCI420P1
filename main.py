@@ -2,6 +2,7 @@ import pandas as pd
 import preprocess
 import os.path
 import javalang.tokenizer
+import math
 
 #Setting up file paths to the repos we are extracting and where they are stored
 repos = "ghs_repos.txt"
@@ -46,7 +47,7 @@ def ngram(dataset,n=3):
                 nextToken = tokenlist[i+n]
                 #new unseen token not in the model
                 if s not in model:
-                    model.update({s:[0,[nextToken,1,None]]})
+                    model.update({s:[1,[nextToken,1,None]]})
                 #otherwise it is in the model, but is a new token
                 elif not inTuple(model[s][1:], nextToken): 
                     model[s].append([nextToken,1,None])
@@ -59,7 +60,7 @@ def ngram(dataset,n=3):
                             break
                     model[s][0] += 1
         except Exception as e:
-            print(f'Exception while creating n-gram model - {type(e)}: {e}')
+            # print(f'Exception while creating n-gram model - {type(e)}: {e}')
             continue
     for val in model.values():
         #first element is total frequency
@@ -76,6 +77,14 @@ def inTuple(nested_list, s):
         if(s == nested_list[i][0]):
             return True
     return False
+
+def compute_perplexity(model):
+    """Computes the perplexity of an n-gram model based on the probabilities computed during training"""
+    probs = [token[2] for val in model.values() for token in val[1:]]
+    
+    N = len(probs)
+    
+    return 2 ** ((-1/N) * sum([math.log(prob) for prob in probs]))
 
 if __name__ == '__main__':
     #creates the dataset if it does not exist
@@ -111,6 +120,7 @@ if __name__ == '__main__':
         print(trainingData)
         print(validationData)
 
-    model = ngram(trainingData, 3)
+    model = ngram(trainingData, 1)
     #TODO: perplexity and stuff here
+    print(f"Perplexity of training set: {compute_perplexity(model)}")
     
