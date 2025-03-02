@@ -48,7 +48,7 @@ def ngram(dataset,n=3):
                 if s not in model:
                     model.update({s:[0,[nextToken,1,None]]})
                 #otherwise it is in the model, but is a new token
-                elif not inTuple(model[s][1:], nextToken): 
+                elif not inList(model[s][1:], nextToken): 
                     model[s].append([nextToken,1,None])
                     model[s][0] += 1
                 #otherwise in the model, not a new token
@@ -71,7 +71,7 @@ def ngram(dataset,n=3):
     return model
 
 #helper function, takes in a nested list returns if a string s is in the first element of the nested list
-def inTuple(nested_list, s):
+def inList(nested_list, s):
     for i in range(len(nested_list)):
         if(s == nested_list[i][0]):
             return True
