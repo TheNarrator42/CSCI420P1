@@ -39,12 +39,12 @@ def ngram(dataset,n=3):
             tokenlist.extend([token.value for token in tokens])
             #creating every possible token from the list
             #there might be an off by 1 error here
-            for i in range(len(tokenlist)-n):
+            for i in range(len(tokenlist)-n+1):
                 s=""
-                for j in range(i, i+n):
+                for j in range(i, i+n-1):
                     s += tokenlist[j] + " "
                 
-                nextToken = tokenlist[i+n]
+                nextToken = tokenlist[i+n-1]
                 #new unseen token not in the model
                 if s not in model:
                     model.update({s:[1,[nextToken,1,None]]})
@@ -78,13 +78,39 @@ def inList(nested_list, s):
             return True
     return False
 
-def compute_perplexity(model):
-    """Computes the perplexity of an n-gram model based on the probabilities computed during training"""
-    probs = [token[2] for val in model.values() for token in val[1:]]
+def compute_perplexity(model, dataset,n=3):
+    """Computes the perplexity based on the probabilities computed during training"""
+    N = 0
+    log_prob_sum = 0
+
+    for index, method in dataset.iterrows(): #Iterating through the methods in the dataset and tokenizing each of them
+        tokenlist = []
+        try:
+            tokens = list(javalang.tokenizer.tokenize(method['Method Code'])) #NOTE: Should we have the tokenized prior? Redundant code here
+            tokenlist.extend([token.value for token in tokens]) 
+            
+            N += len(tokenlist)
+            for i in range(len(tokenlist)-n+1):
+                # Computing log(p(w_i|context)), where context consists of prev n-1 tokens
+                context = "" 
+                for j in range(i, i+n-1):
+                    context += tokenlist[j] + " "
+
+                log_prob = 0
+                if context in model: 
+                    for next_token in model[context][1:]: #going through all the tokens that the model determined could come after the ngram
+                        if tokenlist[i+n-1] == next_token[0]:
+                            log_prob = math.log(next_token[2])
+                            break
+                if log_prob == 0: # Either the context doesn't exist in the model or the token has never been seen before
+                    log_prob = 1e-6 #Very small value since probability can't be 0
+                log_prob_sum += log_prob                 
+                
+        except Exception as e:
+            print(f'Exception while computing perplexity - {type(e)}: {e}')
+            break#continue
     
-    N = len(probs)
-    
-    return 2 ** ((-1/N) * sum([math.log(prob) for prob in probs]))
+    return math.exp((-1/N) * log_prob_sum)
 
 if __name__ == '__main__':
     #creates the dataset if it does not exist
@@ -120,7 +146,9 @@ if __name__ == '__main__':
         print(trainingData)
         print(validationData)
 
-    model = ngram(trainingData, 1)
+    model = ngram(trainingData, 3)
     #TODO: perplexity and stuff here
-    print(f"Perplexity of training set: {compute_perplexity(model)}")
+    print(f"Perplexity of training set: {compute_perplexity(model, trainingData)}")
+    print(f"Perplexity of validation set: {compute_perplexity(model, validationData)}")
+    print(f"Perplexity of testing set: {compute_perplexity(model, testingData)}")
     
