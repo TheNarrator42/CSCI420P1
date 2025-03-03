@@ -196,13 +196,13 @@ if __name__ == '__main__':
     bestPerp = -1
     bestN = -1
     #Train and obtain a bunch of different models
-    for i in range(1,11):
+    for i in range(2,11):
         if(not os.path.isfile(f"{i}-gramData.pkl.bz2")):
             model = ngram(trainingData, i)
             saveCompressed_pickle_bz2(model, f"{i}-gramData.pkl.bz2")
         else:
             model = loadCompressed_pickle_bz2(f"{i}-gramData.pkl.bz2")
-        perplexity = compute_perplexity(model)
+        perplexity = compute_perplexity(model, trainingData, i)
         print(f"n={i}")
         print(f"Perplexity of training set: {perplexity}")
         if(perplexity < bestPerp or bestPerp == -1):
@@ -212,7 +212,7 @@ if __name__ == '__main__':
     print(f"Best Perplexity: {bestPerp}")
     print(f"Best N-gram model is when n = {bestN}")
     
-    for i in range(1,11):
+    for i in range(2,11):
         print(f"Model: {i}-gramData.pkl.bz2")
         model = loadCompressed_pickle_bz2(f"{i}-gramData.pkl.bz2")
         modelGeneration(model, i, testingData)
