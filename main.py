@@ -3,6 +3,8 @@ import preprocess
 import os.path
 import javalang.tokenizer
 import math
+import pickle
+import bz2
 
 #Setting up file paths to the repos we are extracting and where they are stored
 repos = "ghs_repos.txt"
@@ -11,6 +13,15 @@ testingcsv="testingData.csv"
 trainingcsv="trainingData.csv"
 validationcsv="validationData.csv"
 tokenlist="tokens.txt"
+unknownToken = "<UNK>"
+
+def saveCompressed_pickle_bz2(data, filename):
+    with bz2.BZ2File(filename, 'wb') as f:
+        pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+def loadCompressed_pickle_bz2(filename):
+    with bz2.BZ2File(filename, 'rb') as f:
+        return pickle.load(f)
 
 def dataSplit(fullData):
     #Splits data
@@ -43,7 +54,7 @@ def ngram(dataset,n=3):
                 s=""
                 for j in range(i, i+n-1):
                     s += tokenlist[j] + " "
-                
+                s = s.strip()
                 nextToken = tokenlist[i+n-1]
                 #new unseen token not in the model
                 if s not in model:
@@ -112,6 +123,41 @@ def compute_perplexity(model, dataset,n=3):
     
     return math.exp((-1/N) * log_prob_sum)
 
+#Pass in a model, context window, and a set to see how well the model does
+def modelGeneration(model, n, dataset):
+    for index, method in dataset.iterrows():
+        print("New loop")
+        seen = set()
+        tokenlist = []
+        generatedCode = []    
+        tokens = list(javalang.tokenizer.tokenize(method['Method Code']))
+        tokenlist.extend([token.value for token in tokens])
+        try:
+            generatedCode = tokenlist[0:n]
+        except:
+            print("Not enough tokens")
+        counter = 0
+        while(True):
+            try:
+                #TODO fix the ngram mmodel generation so there is no trailing space
+                key = " ".join(generatedCode[counter:counter+n]+ [""])
+                generatedCode.append(model[key][1][0])
+                if key in seen:
+                    print("Looping")
+                    break
+                seen.add(key)
+                counter +=1
+            except Exception as e:
+                print(f"Error{type(e)}:  {e}")
+                if type(e) == KeyError:
+                    generatedCode.append(unknownToken)
+                print(generatedCode)
+                break
+    return 1
+    #May change this return statement
+    #return (compute_perplexity(generatedCode))
+        
+        
 if __name__ == '__main__':
     #creates the dataset if it does not exist
     if(not os.path.isfile(datacsv)):
@@ -134,21 +180,40 @@ if __name__ == '__main__':
     if(not os.path.isfile(testingcsv) and not os.path.isfile(trainingcsv) and not os.path.isfile(validationcsv)):
         print("Data not found")
         testingData, trainingData, validationData=dataSplit(fullData)
-        print(testingData)
-        print(trainingData)
-        print(validationData)
+
     else:
         print("Data found")
         testingData = pd.read_csv(testingcsv)
         trainingData = pd.read_csv(trainingcsv)
         validationData = pd.read_csv(validationcsv)
-        print(testingData)
-        print(trainingData)
-        print(validationData)
 
-    model = ngram(trainingData, 3)
-    #TODO: perplexity and stuff here
-    print(f"Perplexity of training set: {compute_perplexity(model, trainingData)}")
-    print(f"Perplexity of validation set: {compute_perplexity(model, validationData)}")
-    print(f"Perplexity of testing set: {compute_perplexity(model, testingData)}")
+    print("Data Seperation:")
+    print(testingData)
+    print(trainingData)
+    print(validationData)
+
+    #Magic unused values
+    bestPerp = -1
+    bestN = -1
+    #Train and obtain a bunch of different models
+    for i in range(1,11):
+        if(not os.path.isfile(f"{i}-gramData.pkl.bz2")):
+            model = ngram(trainingData, i)
+            saveCompressed_pickle_bz2(model, f"{i}-gramData.pkl.bz2")
+        else:
+            model = loadCompressed_pickle_bz2(f"{i}-gramData.pkl.bz2")
+        perplexity = compute_perplexity(model)
+        print(f"n={i}")
+        print(f"Perplexity of training set: {perplexity}")
+        if(perplexity < bestPerp or bestPerp == -1):
+            bestPerp = perplexity
+            bestN = i
+    
+    print(f"Best Perplexity: {bestPerp}")
+    print(f"Best N-gram model is when n = {bestN}")
+    
+    for i in range(1,11):
+        print(f"Model: {i}-gramData.pkl.bz2")
+        model = loadCompressed_pickle_bz2(f"{i}-gramData.pkl.bz2")
+        modelGeneration(model, i, testingData)
     
