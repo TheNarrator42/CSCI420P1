@@ -50,12 +50,12 @@ def ngram(dataset,n=3):
             tokenlist.extend([token.value for token in tokens])
             #creating every possible token from the list
             #there might be an off by 1 error here
-            for i in range(len(tokenlist)-n+1):
+            for i in range(len(tokenlist)-n):
                 s=""
-                for j in range(i, i+n-1):
+                for j in range(i, i+n):
                     s += tokenlist[j] + " "
                 s = s.strip()
-                nextToken = tokenlist[i+n-1]
+                nextToken = tokenlist[i+n]
                 #new unseen token not in the model
                 if s not in model:
                     model.update({s:[1,[nextToken,1,None]]})
@@ -101,16 +101,16 @@ def compute_perplexity(model, dataset,n=3):
             tokenlist.extend([token.value for token in tokens]) 
             
             N += len(tokenlist)
-            for i in range(len(tokenlist)-n+1):
+            for i in range(len(tokenlist)-n):
                 # Computing log(p(w_i|context)), where context consists of prev n-1 tokens
                 context = "" 
-                for j in range(i, i+n-1):
+                for j in range(i, i+n):
                     context += tokenlist[j] + " "
 
                 log_prob = 0
                 if context in model: 
                     for next_token in model[context][1:]: #going through all the tokens that the model determined could come after the ngram
-                        if tokenlist[i+n-1] == next_token[0]:
+                        if tokenlist[i+n] == next_token[0]:
                             log_prob = math.log(next_token[2])
                             break
                 if log_prob == 0: # Either the context doesn't exist in the model or the token has never been seen before
