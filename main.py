@@ -3,6 +3,8 @@ import preprocess
 import os.path
 import javalang.tokenizer
 import math
+import pickle
+import bz2
 
 #Setting up file paths to the repos we are extracting and where they are stored
 repos = "ghs_repos.txt"
@@ -11,6 +13,14 @@ testingcsv="testingData.csv"
 trainingcsv="trainingData.csv"
 validationcsv="validationData.csv"
 tokenlist="tokens.txt"
+
+def saveCompressed_pickle_bz2(data, filename):
+    with bz2.BZ2File(filename, 'wb') as f:
+        pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+def loadCompressed_pickle_bz2(filename):
+    with bz2.BZ2File(filename, 'rb') as f:
+        return pickle.load(f)
 
 def dataSplit(fullData):
     #Splits data
@@ -108,19 +118,31 @@ if __name__ == '__main__':
     if(not os.path.isfile(testingcsv) and not os.path.isfile(trainingcsv) and not os.path.isfile(validationcsv)):
         print("Data not found")
         testingData, trainingData, validationData=dataSplit(fullData)
-        print(testingData)
-        print(trainingData)
-        print(validationData)
+
     else:
         print("Data found")
         testingData = pd.read_csv(testingcsv)
         trainingData = pd.read_csv(trainingcsv)
         validationData = pd.read_csv(validationcsv)
-        print(testingData)
-        print(trainingData)
-        print(validationData)
 
-    model = ngram(trainingData, 1)
-    #TODO: perplexity and stuff here
-    print(f"Perplexity of training set: {compute_perplexity(model)}")
-    
+    print("Data Speration:")
+    print(testingData)
+    print(trainingData)
+    print(validationData)
+
+    bestPerp = -1
+    bestN = -1
+
+    for i in range(1,11):
+        model = ngram(trainingData, i)
+        perplexity = compute_perplexity(model)
+        saveCompressed_pickle_bz2(model, f"{i}-gramData.pkl.bz2")
+        print(f"n={i}")
+        print(f"Perplexity of training set: {perplexity}")
+        if(perplexity < bestPerp or bestPerp == -1):
+            bestPerp = perplexity
+            bestN = i
+        
+
+    print(f"Best Perplexity: {bestPerp}")
+    print(f"Best N-gram model is when n = {bestN}")    
