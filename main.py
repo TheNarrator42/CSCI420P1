@@ -96,7 +96,7 @@ def compute_perplexity(model, dataset,n=3):
     for index, method in dataset.iterrows(): #Iterating through the methods in the dataset and tokenizing each of them
         tokenlist = []
         try:
-            tokens = list(javalang.tokenizer.tokenize(method['Method Code'])) #NOTE: Should we have the tokenized prior? Redundant code here
+            tokens = list(javalang.tokenizer.tokenize(method['Method Code']))
             tokenlist.extend([token.value for token in tokens]) 
             
             N += len(tokenlist)
@@ -105,15 +105,13 @@ def compute_perplexity(model, dataset,n=3):
                 context = "" 
                 for j in range(i, i+n):
                     context += tokenlist[j] + " "
-
-                log_prob = 0
+                context = context.strip()
+                log_prob = math.log(1e-6) # Default to low probability if either the context doesn't exist in model or the token hasn't been seen before
                 if context in model: 
                     for next_token in model[context][1:]: #going through all the tokens that the model determined could come after the ngram
                         if tokenlist[i+n] == next_token[0]:
                             log_prob = math.log(next_token[2])
                             break
-                if log_prob == 0: # Either the context doesn't exist in the model or the token has never been seen before
-                    log_prob = 1e-6 #Very small value since probability can't be 0
                 log_prob_sum += log_prob                 
                 
         except Exception as e:
