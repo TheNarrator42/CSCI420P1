@@ -137,13 +137,32 @@ def modelGeneration(model, n, dataset):
         except:
             print("Not enough tokens")
         counter = 0
-        while(True):
+        while True:
             try:
-                #TODO fix the ngram mmodel generation so there is no trailing space
                 key = " ".join(generatedCode[counter:counter+n])
-                generatedCode.append(model[key][1][0])
+                #Next predicted token
+                nextPredict = model[key][1][0]
+                generatedCode.append(nextPredict)
+                if nextPredict == endToken:
+                    print("End token detected, ending method")
+                    break
+                elif nextPredict == "{":
+                    if braces == None :
+                        braces=1
+                    else:
+                        braces+=1
+                elif nextPredict == "}":
+                    if braces == None :
+                        print("Braces mismatched, ending generation")
+                        break
+                    braces -= 1
+                    if braces == 0:
+                        print("Braces matched, ending")
+                        break
+
                 if key in seen:
                     print("Looping")
+                    generatedCode = generatedCode[:-n]
                     break
                 seen.add(key)
                 counter +=1
