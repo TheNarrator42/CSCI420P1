@@ -187,6 +187,7 @@ def modelGeneration(model, dataset, n):
                 print(f"Error{type(e)}:  {e}")
                 if type(e) == KeyError:
                     generatedCode.append(unknownToken)
+                    row_generated.append((unknownToken,1))
                 print(generatedCode)
                 break
         allGenCode = pd.concat([allGenCode, pd.DataFrame([{"Generated Code": " ".join(map(str, row_generated))}])], ignore_index=True)

@@ -1,0 +1,3 @@
+5-gram model perplexity: 2.5022670972357073
+Perplexity Data for validation data: 2.5022670972357073 
+Perplexity Data for testing data: 1.9907118258419785 
