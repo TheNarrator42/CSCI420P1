@@ -123,26 +123,33 @@ def compute_perplexity(model, dataset,n=3):
     return math.exp((-1/N) * log_prob_sum)
 
 #Pass in a model, context window, and a set to see how well the model does
-def modelGeneration(model, n, dataset):
+def modelGeneration(model, dataset, n):
     braces = None
+    allGenCode = pd.DataFrame(columns=["Generated Code"])
     for index, method in dataset.iterrows():
         print("New loop")
         seen = set()
         tokenlist = []
-        generatedCode = []    
+        generatedCode = []
         tokens = list(javalang.tokenizer.tokenize(method['Method Code']))
         tokenlist.extend([token.value for token in tokens])
+        
         try:
             generatedCode = tokenlist[0:n]
         except:
             print("Not enough tokens")
+        
         counter = 0
+        row_generated = []
+        
         while True:
             try:
                 key = " ".join(generatedCode[counter:counter+n])
                 #Next predicted token
                 nextPredict = model[key][1][0]
                 generatedCode.append(nextPredict)
+                row_generated.append((nextPredict,model[key][1][2]))
+
                 if nextPredict == endToken:
                     print("End token detected, ending method")
                     break
@@ -172,9 +179,9 @@ def modelGeneration(model, n, dataset):
                     generatedCode.append(unknownToken)
                 print(generatedCode)
                 break
-    return 1
-    #May change this return statement
-    #return (compute_perplexity(generatedCode))
+        allGenCode = pd.concat({"Generated Code": " ".join(row_generated)}, ignore_index=True)
+
+    return allGenCode
         
         
 if __name__ == '__main__':
@@ -209,7 +216,6 @@ if __name__ == '__main__':
                 trainingData = pd.read_table(sys.argv[2], header=None)
                 trainingData = trainingData.rename(columns={trainingData.columns[0]:"Method Code"})
                 trainingData = preprocess.data_clean(trainingData)
-                quit()
 
         testingData.to_csv(testingcsv, index = False)
         trainingData.to_csv(trainingcsv, index = False)
@@ -239,9 +245,9 @@ if __name__ == '__main__':
             saveCompressed_pickle_bz2(model, f"gramModels/{i}-gramData.pkl.bz2")
         else:
             model = loadCompressed_pickle_bz2(f"gramModels/{i}-gramData.pkl.bz2")
-        perplexity = compute_perplexity(model, trainingData, i)
+        perplexity = compute_perplexity(model, validationData, i)
         print(f"n={i}")
-        print(f"Perplexity of training set: {perplexity}")
+        print(f"Perplexity of validation set: {perplexity}")
         if(perplexity < bestPerp or bestPerp == -1):
             bestPerp = perplexity
             bestN = i
@@ -249,7 +255,17 @@ if __name__ == '__main__':
     print(f"Best Perplexity: {bestPerp}")
     print(f"Best N-gram model is when n = {bestN}")
     
-    for i in range(2,11):
-        print(f"Model: {i}-gramData.pkl.bz2")
-        model = loadCompressed_pickle_bz2(f"{i}-gramData.pkl.bz2")
-        modelGeneration(model, i, testingData)
+    model = loadCompressed_pickle_bz2(f"gramModels/{bestN}-gramData.pkl.bz2")
+    
+    validationPerp = compute_perplexity(model, validationData,bestN)
+    testingPerp = compute_perplexity(model, testingData, bestN)
+    print(f"Perplexity Data for validation data: {validationPerp}")
+    print(f"Perplexity Data for testing data: {testingPerp}")
+
+    with open("perplexities.txt", "w") as f:
+        f.write(str(bestN)+"-gram model perplexity: "+str(bestPerp)+"\n")
+        f.write(f"Perplexity Data for validation data: {validationPerp} \n")
+        f.write(f"Perplexity Data for testing data: {testingPerp} \n")
+    
+    df = modelGeneration(model, testingData, bestN)
+    df.to_json("testingResults.json", orient="index", indent=4)
