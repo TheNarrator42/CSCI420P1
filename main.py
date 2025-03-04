@@ -47,7 +47,7 @@ def ngram(dataset,n=3):
             tokens = list(javalang.tokenizer.tokenize(method['Method Code']))
             tokenlist.extend([token.value for token in tokens])
             #Special case the end of the function to insert a special end token
-            model.update({tokenlist[-n:]:[1,[endToken,1,1]]})
+            model.update({" ".join(tokenlist[-n:]).strip():[1,[endToken,1,1]]})
             #creating every possible token from the list
             for i in range(len(tokenlist)-n):
                 s=""
@@ -70,7 +70,7 @@ def ngram(dataset,n=3):
                             break
                     model[s][0] += 1
         except Exception as e:
-            # print(f'Exception while creating n-gram model - {type(e)}: {e}')
+            #print(f'Exception while creating n-gram model - {type(e)}: {e}')
             continue
     for val in model.values():
         #first element is total frequency
@@ -179,7 +179,7 @@ def modelGeneration(model, dataset, n):
                     generatedCode.append(unknownToken)
                 print(generatedCode)
                 break
-        allGenCode = pd.concat({"Generated Code": " ".join(row_generated)}, ignore_index=True)
+        allGenCode = pd.concat([allGenCode, pd.DataFrame([{"Generated Code": " ".join(row_generated)}])], ignore_index=True)
 
     return allGenCode
         
