@@ -5,6 +5,7 @@ import javalang.tokenizer
 import math
 import pickle
 import bz2
+import sys
 
 #Setting up file paths to the repos we are extracting and where they are stored
 repos = "ghs_repos.txt"
@@ -14,6 +15,7 @@ trainingcsv="trainingData.csv"
 validationcsv="validationData.csv"
 tokenlist="tokens.txt"
 unknownToken = "<UNK>"
+endToken = "<END>"
 
 def saveCompressed_pickle_bz2(data, filename):
     with bz2.BZ2File(filename, 'wb') as f:
@@ -31,12 +33,8 @@ def dataSplit(fullData):
     fullData = fullData.drop(trainingData.index)
     validationData = fullData.sample(frac=1)
     fullData = fullData.drop(validationData.index)
-    print("Data partitioned")
-    print(fullData)
-    testingData.to_csv(testingcsv, index = False)
-    trainingData.to_csv(trainingcsv, index = False)
-    validationData.to_csv(validationcsv, index = False)
-    return testingData, trainingData, validationData
+    print("Data Splited")
+    return trainingData, testingData, validationData
 
 #takes in panda dataframe, int n for size, returns a dictionary
 def ngram(dataset,n=3):
@@ -48,8 +46,9 @@ def ngram(dataset,n=3):
         try:
             tokens = list(javalang.tokenizer.tokenize(method['Method Code']))
             tokenlist.extend([token.value for token in tokens])
+            #Special case the end of the function to insert a special end token
+            model.update({tokenlist[-n:]:[1,[endToken,1,1]]})
             #creating every possible token from the list
-            #there might be an off by 1 error here
             for i in range(len(tokenlist)-n):
                 s=""
                 for j in range(i, i+n):
@@ -125,6 +124,7 @@ def compute_perplexity(model, dataset,n=3):
 
 #Pass in a model, context window, and a set to see how well the model does
 def modelGeneration(model, n, dataset):
+    braces = None
     for index, method in dataset.iterrows():
         print("New loop")
         seen = set()
@@ -140,7 +140,7 @@ def modelGeneration(model, n, dataset):
         while(True):
             try:
                 #TODO fix the ngram mmodel generation so there is no trailing space
-                key = " ".join(generatedCode[counter:counter+n]+ [""])
+                key = " ".join(generatedCode[counter:counter+n])
                 generatedCode.append(model[key][1][0])
                 if key in seen:
                     print("Looping")
@@ -159,14 +159,14 @@ def modelGeneration(model, n, dataset):
         
         
 if __name__ == '__main__':
-    #creates the dataset if it does not exist
+    #Creates the dataset if it does not exist
     if(not os.path.isfile(datacsv)):
-        print("extracting data")
+        print("Extracting data")
         fullData = preprocess.create_dataset(repos, datacsv)
     else:
-        print("data found")
+        print("Data found")
         fullData = pd.read_csv(datacsv)
-    #Dropping unneeded columns
+    # Dropping unneeded columns
     fullData.drop(axis=1, labels=["Commit Hash", "Commit Link","Method Name","File Name", "Repo Name"], inplace=True)
     fullData.drop(fullData.columns[0],axis=1,inplace = True)
 
@@ -177,10 +177,24 @@ if __name__ == '__main__':
         tokens = open(tokenlist).read().splitlines()
 
     #Seperating data into three sets
-    if(not os.path.isfile(testingcsv) and not os.path.isfile(trainingcsv) and not os.path.isfile(validationcsv)):
-        print("Data not found")
-        testingData, trainingData, validationData=dataSplit(fullData)
+    if (not os.path.isfile(testingcsv) and not os.path.isfile(trainingcsv) and not os.path.isfile(validationcsv)):
+        print("Data Seperation not found")
+        print("Attempting to split data")
+        match int(sys.argv[1]):
+            #Reading in data from text file
+            case 1:
+                trainingData, testingData, validationData=dataSplit(fullData)
+            #Reading in data for training from command line
+            case 2:
+                _, testingData, validationData=dataSplit(fullData)
+                trainingData = pd.read_table(sys.argv[2], header=None)
+                trainingData = trainingData.rename(columns={trainingData.columns[0]:"Method Code"})
+                trainingData = preprocess.data_clean(trainingData)
+                quit()
 
+        testingData.to_csv(testingcsv, index = False)
+        trainingData.to_csv(trainingcsv, index = False)
+        validationData.to_csv(validationcsv, index = False)
     else:
         print("Data found")
         testingData = pd.read_csv(testingcsv)
@@ -196,12 +210,12 @@ if __name__ == '__main__':
     bestPerp = -1
     bestN = -1
     #Train and obtain a bunch of different models
-    for i in range(2,11):
+    for i in range(1,11):
         if(not os.path.isfile(f"{i}-gramData.pkl.bz2")):
             model = ngram(trainingData, i)
-            saveCompressed_pickle_bz2(model, f"{i}-gramData.pkl.bz2")
+            saveCompressed_pickle_bz2(model, f"gramModels/{i}-gramData.pkl.bz2")
         else:
-            model = loadCompressed_pickle_bz2(f"{i}-gramData.pkl.bz2")
+            model = loadCompressed_pickle_bz2(f"gramModels/{i}-gramData.pkl.bz2")
         perplexity = compute_perplexity(model, trainingData, i)
         print(f"n={i}")
         print(f"Perplexity of training set: {perplexity}")
@@ -216,4 +230,3 @@ if __name__ == '__main__':
         print(f"Model: {i}-gramData.pkl.bz2")
         model = loadCompressed_pickle_bz2(f"{i}-gramData.pkl.bz2")
         modelGeneration(model, i, testingData)
-    
