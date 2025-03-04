@@ -47,7 +47,19 @@ def ngram(dataset,n=3):
             tokens = list(javalang.tokenizer.tokenize(method['Method Code']))
             tokenlist.extend([token.value for token in tokens])
             #Special case the end of the function to insert a special end token
-            model.update({" ".join(tokenlist[-n:]).strip():[1,[endToken,1,1]]})
+            endSequence = " ".join(tokenlist[-n:]).strip()
+            if endSequence not in model:
+                model.update({endSequence:[1,[endToken,1,None]]})
+            elif not inList(model[endSequence][1:], endToken):
+                model[endSequence].append([endToken,1,None])
+                model[endSequence][0] += 1
+            else:
+                    for i in model[endSequence][1:]:
+                        if(endToken == i[0]):
+                            i[1]+=1
+                            break
+                    model[endSequence][0] += 1
+
             #creating every possible token from the list
             for i in range(len(tokenlist)-n):
                 s=""
@@ -179,7 +191,8 @@ def modelGeneration(model, dataset, n):
                     generatedCode.append(unknownToken)
                 print(generatedCode)
                 break
-        allGenCode = pd.concat([allGenCode, pd.DataFrame([{"Generated Code": " ".join(row_generated)}])], ignore_index=True)
+        allGenCode = pd.concat([allGenCode, pd.DataFrame([{"Generated Code": " ".join(map(str, row_generated))}])], ignore_index=True)
+
 
     return allGenCode
         
