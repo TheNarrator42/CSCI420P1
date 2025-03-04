@@ -160,22 +160,23 @@ def create_dataset(repo_list_file, output_csv):
     df = extract_methods_to_dataframe_from_master(repo_list)
 
     print(f'Raw dataframe consisting of {len(df)} Java methods')
-
-    df = remove_duplicates(df)
-
-    df = filter_ascii_methods(df)
-
-    df = remove_outliers(df)
-
-    df = remove_boilerplate_methods(df)
-
-    df = remove_comments_from_dataframe(df, "Method Code", "Java")
+    
+    df = data_clean(df)
 
     print(f'Final preprocessed dataframe consisting of {len(df)} Java methods')
     print(f'Saving dataframe as CSV file in {output_csv}')
 
     df.to_csv(output_csv)
     return df
+
+def data_clean(df):
+    df = remove_duplicates(df)
+    df = filter_ascii_methods(df)
+    df = remove_outliers(df)
+    df = remove_boilerplate_methods(df)
+    df = remove_comments_from_dataframe(df, "Method Code", "Java")
+    return df
+
 
 def tokenization(dataset, output_vocab_file):
     """Tokenizing the dataset to create a vocabulary of unique tokens"""
