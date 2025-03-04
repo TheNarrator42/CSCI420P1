@@ -1,6 +1,6 @@
 import pandas as pd
 import preprocess
-import os.path
+import os
 import javalang.tokenizer
 import math
 import pickle
@@ -209,6 +209,10 @@ if __name__ == '__main__':
     #Magic unused values
     bestPerp = -1
     bestN = -1
+    
+    if not os.path.exists("gramModels"):
+        os.makedirs("gramModels")
+
     #Train and obtain a bunch of different models
     for i in range(1,11):
         if(not os.path.isfile(f"{i}-gramData.pkl.bz2")):
